@@ -1,20 +1,41 @@
 import { useEffect, useState } from "react";
-import { dummyCreationData } from "../assets/assets";
 import { Gem, Sparkles } from "lucide-react";
-import {Show} from '@clerk/react'
+import { useAuth } from "@clerk/react";
+import axios from "axios";
+import toast from "react-hot-toast";
 import CreationsItem from "../components/CreationsItem";
 
+axios.defaults.baseURL = import.meta.env.VITE_BASE_URL;
 
 const Dashboard = () => {
-  const [creations, setCreations] = useState([])
-
-  const getDashboardData = async () => {
-    setCreations(dummyCreationData)
-  }
+  const [creations, setCreations] = useState([]);
+  const [plan, setPlan] = useState("free");
+  const { getToken } = useAuth();
 
   useEffect(() => {
+    let cancelled = false;
+    const getDashboardData = async () => {
+      try {
+        const { data } = await axios.get("/api/user/get-user-creations", {
+          headers: { Authorization: `Bearer ${await getToken()}` },
+        });
+        if (cancelled) return;
+        if (data.success) {
+          setCreations(data.creations);
+          setPlan(data.plan);
+        } else {
+          toast.error(data.message);
+        }
+      } catch (error) {
+        if (!cancelled)
+          toast.error(error.response?.data?.message || error.message);
+      }
+    };
     getDashboardData();
-  }, [])
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken]);
 
   return (
     <div className="h-full overflow-y-scroll p-6">
@@ -25,7 +46,7 @@ const Dashboard = () => {
             <h2 className="text-xl font-semibold">{creations.length}</h2>
           </div>
           <div className="w-10 h-10 rounded-lg bg-linear-to-br from-[#3588F2] to-[#0BB0D7] text-white flex justify-center items-center">
-            <Sparkles className="w-5 text-white"/>
+            <Sparkles className="w-5 text-white" />
           </div>
         </div>
 
@@ -34,28 +55,23 @@ const Dashboard = () => {
           <div className="text-slate-600">
             <p className="text-sm">Active Plan</p>
             <h2 className="text-xl font-semibold">
-              {/* If your SDK uses 'role', map your plans to Clerk roles */}
-              <Show when={{role:'org:premium'}} fallback={<>Free</>}>
-                Premium
-              </Show>
+              {plan === "premium" ? "Premium" : "Free"}
             </h2>
           </div>
           <div className="w-10 h-10 rounded-lg bg-linear-to-br from-[#FF61C5] to-[#9E53EE] text-white flex justify-center items-center">
-            <Gem className="w-5 text-white"/>
+            <Gem className="w-5 text-white" />
           </div>
         </div>
-
       </div>
 
       <div className="space-y-3">
         <p className="mt-6 mb-4">Recent Creations</p>
-        {
-          creations.map((item) => <CreationsItem key={item.id} item={item}/>)
-        }
+        {creations.map((item) => (
+          <CreationsItem key={item.id} item={item} />
+        ))}
       </div>
-
     </div>
-  )
-}
+  );
+};
 
 export default Dashboard;
